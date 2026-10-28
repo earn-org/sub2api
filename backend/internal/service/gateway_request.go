@@ -1851,13 +1851,31 @@ func NormalizeChineseLLMThinking(body []byte, mappedModel string) ([]byte, bool)
 	if !strings.HasPrefix(modelLower, "minimax-m") {
 		return body, false
 	}
+	// Flash requires reasoning. Resolve against the mapped upstream model, not
+	// a public alias; older MiniMax models still support disabled thinking.
+	flash := modelLower == "minimax-m3.1-flash"
+	modified := body
+	changed := false
 	thinkingType := gjson.GetBytes(body, "thinking.type").String()
-	if thinkingType != "enabled" {
-		return body, false
+	if thinkingType == "enabled" || (flash && thinkingType == "disabled") {
+		var err error
+		modified, err = sjson.SetBytes(modified, "thinking.type", "adaptive")
+		if err != nil {
+			return body, false
+		}
+		changed = true
 	}
-	modified, err := sjson.SetBytes(body, "thinking.type", "adaptive")
-	if err != nil {
-		return body, false
+	if flash {
+		for _, field := range []string{"reasoning_effort", "output_config.effort", "reasoning.effort"} {
+			if gjson.GetBytes(modified, field).String() == "none" {
+				var err error
+				modified, err = sjson.DeleteBytes(modified, field)
+				if err != nil {
+					return body, false
+				}
+				changed = true
+			}
+		}
 	}
-	return modified, true
+	return modified, changed
 }
