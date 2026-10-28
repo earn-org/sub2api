@@ -31,6 +31,8 @@ func TestARTEXMiniMaxFlashThinkingNormalization(t *testing.T) {
 		{"flash-disabled-and-none", "MiniMax-M3.1-Flash", `{"thinking":{"type":"disabled"},"reasoning_effort":"none"}`, `{"thinking":{"type":"adaptive"}}`, true},
 		{"flash-adaptive-and-none", "MiniMax-M3.1-Flash", `{"thinking":{"type":"adaptive"},"reasoning_effort":"none"}`, `{"thinking":{"type":"adaptive"}}`, true},
 		{"flash-none-only", "MiniMax-M3.1-Flash", `{"reasoning_effort":"none"}`, `{}`, true},
+		{"flash-anthropic-none", "MiniMax-M3.1-Flash", `{"output_config":{"effort":"none"}}`, `{"output_config":{}}`, true},
+		{"flash-responses-none", "MiniMax-M3.1-Flash", `{"reasoning":{"effort":"none"}}`, `{"reasoning":{}}`, true},
 		{"flash-adaptive", "MiniMax-M3.1-Flash", `{"thinking":{"type":"adaptive"}}`, `{"thinking":{"type":"adaptive"}}`, false},
 		{"flash-omitted", "MiniMax-M3.1-Flash", `{"model":"artex-auto"}`, `{"model":"artex-auto"}`, false},
 		{"flash-preserves-other-fields", "MiniMax-M3.1-Flash", `{"thinking":{"type":"disabled"},"reasoning_effort":"high","temperature":0.2}`, `{"thinking":{"type":"adaptive"},"reasoning_effort":"high","temperature":0.2}`, true},
@@ -63,8 +65,10 @@ func TestARTEXRawChatNormalizesThinkingAfterAliasMapping(t *testing.T) {
 			{"MiniMax-M3.1-Flash", PlatformMiniMax, "adaptive", false},
 			{"MiniMax-M2.7", PlatformMiniMax, "disabled", true},
 			{"deepseek-v4.1-flash", PlatformOpenCodeGo, "disabled", true},
+			{"MiniMax-M3.1-Flash", PlatformOpenAI, "adaptive", false},
+			{"deepseek-v4.1-flash", PlatformOpenAI, "disabled", true},
 		} {
-			t.Run(fmt.Sprintf("stream=%t/model=%s", stream, tt.model), func(t *testing.T) {
+			t.Run(fmt.Sprintf("stream=%t/model=%s/platform=%s", stream, tt.model, tt.platform), func(t *testing.T) {
 				body := []byte(fmt.Sprintf(`{"model":"artex-auto","messages":[{"role":"user","content":"Synthetic summary request."}],"thinking":{"type":"disabled"},"reasoning_effort":"none","stream":%t}`, stream))
 				rec := httptest.NewRecorder()
 				c, _ := gin.CreateTestContext(rec)
@@ -84,6 +88,7 @@ func TestARTEXRawChatNormalizesThinkingAfterAliasMapping(t *testing.T) {
 				svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
 				account := rawChatCompletionsTestAccount()
 				account.Platform = tt.platform
+				account.Extra = map[string]any{"openai_responses_mode": "force_chat_completions"}
 				account.Credentials["api_protocol"] = "chat_completions"
 				account.Credentials["model_mapping"] = map[string]any{"artex-auto": tt.model}
 
